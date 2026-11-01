@@ -1,0 +1,51 @@
+[project]
+name = "marg-mentor-intelligence"
+version = "0.1.0"
+description = "MARG Mentor Intelligence Engine - planning and coordination assistant for education mentors (prototype)"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.20.1",
+    "anthropic>=1",
+    "asyncpg>=0.32.0",
+    "fastapi>=0.162.0",
+    "pydantic>=2",
+    "pydantic-settings>=2.16.2",
+    "sqlalchemy[asyncio]>=2",
+    "tzdata>=2026.6",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "ASYNC"]
+ignore = ["S101", "B008", "E501", "UP046"]  # line length is handled by ruff format
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S105", "S106"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+markers = [
+  "postgres: requires the marg_mentor_intelligence PostgreSQL database (schema mie_test)",
+  "live_llm: calls the real Claude API (requires RUN_LIVE_LLM_TESTS=1)",
+]
+addopts = "-m \"not postgres and not live_llm\""
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+
+[dependency-groups]
+dev = [
+    "aiosqlite>=0.22.1",
+    "httpx>=0.28.1",
+    "pytest>=9.2.0",
+    "pytest-asyncio>=1.4.1",
+    "ruff>=0.17.3",
+]

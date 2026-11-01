@@ -1,0 +1,58 @@
+﻿# Secrets and environment variables
+.env
+.env.*
+*.key
+*.pem
+
+# Python virtual environments
+venv/
+.venv/
+env/
+__pycache__/
+*.py[cod]
+
+# Node.js
+node_modules/
+
+# Expo
+.expo/
+.expo-shared/
+
+# Python cache
+.pytest_cache/
+.mypy_cache/
+
+# Temporary and backup folders
+.scratch/
+backups/
+
+# IDE settings
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Allow safe environment templates
+!.env.example
+!**/.env.example
+
+# Build and cache files
+**/node_modules/
+**/.expo/
+**/.pytest_cache/
+**/__pycache__/
+**/.venv/
+**/venv/
+**/dist/
+**/build/
+
+# RAG data and vector databases (store separately)
+**/chroma_db/
+**/data/pdfs/
+**/data/classroom-coach/
+
+# Local secrets and temporary files
+**/.env
+**/.env.*
+!**/.env.example

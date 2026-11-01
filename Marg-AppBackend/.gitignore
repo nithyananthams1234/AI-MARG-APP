@@ -1,0 +1,18 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.env
+*.py[cod]
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+alembic/versions/__pycache__/
+
+# added for integration baseline
+.env.*
+!.env.example
+storage/

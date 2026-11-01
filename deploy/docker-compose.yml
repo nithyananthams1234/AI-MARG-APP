@@ -1,0 +1,129 @@
+# MARG production stack (single VM). See docs/DEPLOYMENT.md.
+#   docker compose --env-file .env up -d --build
+# Only the edge proxy (Caddy) publishes ports. PostgreSQL and the AI services
+# are reachable on the internal network only.
+name: marg
+
+x-restart: &restart
+  restart: unless-stopped
+
+services:
+  postgres:
+    <<: *restart
+    image: postgres:17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set in .env}
+      MARG_DB_PASSWORD: ${MARG_DB_PASSWORD:?set in .env}
+      MIE_DB_PASSWORD: ${MIE_DB_PASSWORD:?set in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/init-databases.sh:/docker-entrypoint-initdb.d/10-init-databases.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      retries: 10
+
+  backend:
+    <<: *restart
+    build: ../Marg-AppBackend
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment: &backend_env
+      APP_ENV: production
+      DATABASE_URL: postgresql+asyncpg://marg_app:${MARG_DB_PASSWORD}@postgres:5432/marg_db
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?set in .env}
+      CORS_ORIGINS: https://${MARG_DOMAIN}
+      STORAGE_BACKEND: s3
+      STORAGE_ENDPOINT_URL: ${S3_ENDPOINT_URL}
+      STORAGE_ACCESS_KEY: ${S3_ACCESS_KEY}
+      STORAGE_SECRET_KEY: ${S3_SECRET_KEY}
+      STORAGE_BUCKET_NAME: ${S3_EVIDENCE_BUCKET:-marg-evidence}
+      STORAGE_REGION: ${S3_REGION:-auto}
+      AI_PROVIDER: classroom_coach
+      CLASSROOM_COACH_URL: http://classroom-coach:8001
+      CLASSROOM_COACH_API_KEY: ${COACH_API_KEY:?set in .env}
+      MENTOR_INTELLIGENCE_URL: http://mentor-intelligence:8002
+      MENTOR_INTELLIGENCE_API_KEY: ${MIE_ENGINE_API_KEY:?set in .env}
+      MENTOR_INTELLIGENCE_SERVICE_KEY: ${MIE_SERVICE_KEY:?set in .env}
+      AI_INLINE_PROCESSING: "true"
+      REMINDERS_INLINE: "false"   # the worker generates reminders
+    expose: ["8000"]
+
+  worker:
+    <<: *restart
+    build: ../Marg-AppBackend
+    command: ["python", "-m", "app.workers.ai_worker"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment: *backend_env
+
+  classroom-coach:
+    <<: *restart
+    build: ../Marg-LLM
+    environment:
+      APP_ENV: production
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:?set in .env}
+      NVIDIA_BASE_URL: ${NVIDIA_BASE_URL:-https://integrate.api.nvidia.com/v1}
+      NVIDIA_MODEL: ${COACH_NVIDIA_MODEL:-nvidia/nemotron-3.5-lightning-30b-a3b}
+      CHROMA_PATH: /data/chroma_db
+      TITLE_MAPPING_FILE: /data/rename_mapping.csv
+      COACH_API_KEY: ${COACH_API_KEY}
+    volumes:
+      # Upload the knowledge base to the VM first (see docs/DEPLOYMENT.md).
+      - ${COACH_DATA_DIR:-./data/classroom-coach}:/data
+    expose: ["8001"]
+
+  mentor-intelligence:
+    <<: *restart
+    build: ../MARG-Mentor-Intelligence
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      APP_ENV: production
+      LOG_FORMAT: json
+      DB_BACKEND: postgres
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: marg_mentor_intelligence
+      DB_USER: marg_mie_app
+      DB_PASSWORD: ${MIE_DB_PASSWORD}
+      ENGINE_API_KEY: ${MIE_ENGINE_API_KEY}
+      DEV_AUTH_HEADER_ENABLED: "false"
+      TRUSTED_GATEWAY_IDENTITY: "true"
+      BACKEND_MODE: marg
+      MARG_BACKEND_URL: http://backend:8000
+      MARG_BACKEND_SERVICE_KEY: ${MIE_SERVICE_KEY}
+      AI_ENABLED: ${MIE_AI_ENABLED:-true}
+      AI_PROVIDER: nvidia
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:?set in .env}
+      NVIDIA_BASE_URL: ${NVIDIA_BASE_URL:-https://integrate.api.nvidia.com/v1}
+      NVIDIA_MODEL: ${MIE_NVIDIA_MODEL:-nvidia/nemotron-3.5-lightning-30b-a3b}
+      LLM_DAILY_TOKEN_BUDGET_PER_MENTOR: ${LLM_DAILY_TOKEN_BUDGET_PER_MENTOR:-200000}
+      LLM_DAILY_TOKEN_BUDGET_GLOBAL: ${LLM_DAILY_TOKEN_BUDGET_GLOBAL:-2000000}
+      LLM_PRICING: ${LLM_PRICING:-}
+      PSEUDONYMISATION_KEY: ${PSEUDONYMISATION_KEY:?set in .env}
+    expose: ["8002"]
+
+  edge:
+    <<: *restart
+    build:
+      context: ../Marg-AppFrontend
+      args:
+        EXPO_PUBLIC_API_URL: https://${MARG_DOMAIN}/api/v1
+    depends_on: [backend]
+    environment:
+      MARG_DOMAIN: ${MARG_DOMAIN:?set in .env}
+      ACME_EMAIL: ${ACME_EMAIL:?set in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

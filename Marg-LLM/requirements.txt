@@ -1,0 +1,14 @@
+# MARG Classroom Coach (Python 3.12). Versions verified locally.
+fastapi==0.162.0
+uvicorn[standard]==0.54.0
+pydantic==2.14.2
+pydantic-settings==2.16.2
+ollama==0.6.3
+chromadb==1.5.9
+sentence-transformers==6.2.0
+pypdf==6.21.4
+httpx==0.28.1
+# CPU build of torch is sufficient for embeddings (the LLM runs in Ollama):
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+torch==2.15.0
+pytest==9.2.0

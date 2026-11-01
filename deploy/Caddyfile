@@ -1,0 +1,39 @@
+# Edge proxy: automatic HTTPS (Let's Encrypt), static frontend, API proxy.
+{
+	email {$ACME_EMAIL}
+}
+
+{$MARG_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "geolocation=(), microphone=(self), camera=(self)"
+		-Server
+	}
+
+	# Service-to-service API is internal only (Mentor Intelligence -> backend).
+	@internal path /api/v1/integrations/*
+	respond @internal 404
+
+	handle /api/* {
+		request_body {
+			max_size 12MB
+		}
+		reverse_proxy backend:8000
+	}
+
+	handle /health* {
+		reverse_proxy backend:8000
+	}
+
+	# Single-page app
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

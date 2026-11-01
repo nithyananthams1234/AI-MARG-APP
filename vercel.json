@@ -1,0 +1,11 @@
+{
+  "buildCommand": "cd Marg-AppFrontend && npm ci && npx expo export --platform web",
+  "outputDirectory": "Marg-AppFrontend/dist",
+  "framework": null,
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
